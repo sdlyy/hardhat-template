@@ -1,0 +1,59 @@
+stages:
+  - lint
+  - test
+  - security
+
+cache:
+  key: ${CI_COMMIT_REF_SLUG}
+  paths:
+    - node_modules/
+    - build/
+
+eslint:
+  image: node:14.17.6
+  stage: lint
+  script:
+    - npm ci
+    - npm run lint
+  allow_failure: true
+
+solhint:
+  image: node:14.17.6
+  stage: lint
+  script:
+    - npm ci
+    - npm run solhint
+  allow_failure: true
+
+test:
+  image: node:14.17.6
+  stage: test
+  script:
+    - npm ci
+    - apt-get update && apt-get install -y gawk
+    - npm run compile
+    - npm run coverage
+  coverage: /All files[^|]*\|[^|]*\s+([\d\.]+)/
+  artifacts:
+    paths:
+      - coverage
+    expire_in: 10 days
+    reports:
+      cobertura: coverage/cobertura-coverage.xml
+
+slither:
+  image: python
+  stage: security
+  before_script:
+    - apt install curl
+    - curl https://raw.githubusercontent.com/creationix/nvm/master/install.sh | bash
+    - export NVM_DIR="$HOME/.nvm" && . "$NVM_DIR/nvm.sh" --no-use
+    - eval "[ -f .nvmrc ] && nvm install 14.17.6"
+    - eval "[ -f .nvmrc ] && nvm use 14.17.6"
+    - npm install
+    - pip3 install slither-analyzer
+    - pip3 install solc-select
+    - solc-select install 0.8.0
+    - solc-select use 0.8.0
+  script:
+    - slither . --print human-summary
